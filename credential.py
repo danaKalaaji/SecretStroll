@@ -45,6 +45,34 @@ DisclosureProof = Any
 def to_int(byte):
     return int.from_bytes(byte, "big")
 
+def proof_of_knowledge(                 #TODO: type parameters
+        g,
+        p,
+        Ys,
+        C,
+        t,
+        attributes
+        user_attributes):
+        
+        r_t = p.random()
+
+        r_as = [p.random() for _ in len(user_attributes)]
+
+        R = (g ** r_t) * G1.prod([Ys[attributes.index(att)]**r_ais[att] 
+        for att in user_attributes.keys()])
+
+        c = hash(...) #todo
+
+        s_t = r_t - c * t #mod p
+
+        s_as = [r_as[user_attributes.keys().index(att)] - c * user_attributes[att] 
+                for att in user_attributes] #mod p
+
+
+
+
+
+
 
 ######################
 ## SIGNATURE SCHEME ##
@@ -55,6 +83,11 @@ def generate_key(
         attributes: List[Attribute]
     ) -> Tuple[SecretKey, PublicKey]:
     """ Generate signer key pair """
+
+    """
+        Assuming that the attributes does not contain duplicates
+    """
+
     p = G1.order()
     L = len(attributes)
 
@@ -118,14 +151,31 @@ def verify(
 def create_issue_request(
         pk: PublicKey,
         user_attributes: AttributeMap
-    ) -> IssueRequest:
+    ) -> Tuple[IssueRequest, int]:
     """ Create an issuance request
 
     This corresponds to the "user commitment" step in the issuance protocol.
 
     *Warning:* You may need to pass state to the `obtain_credential` function.
+ 
+    Assuming that we trust the user in user_attributes, we consider the list of
+    keys to be the actual list of user defined attributes
     """
-    raise NotImplementedError()
+
+    p = G1.order()
+    t = p.random()
+    g = pk[0]
+    Ys = pk[1]
+    attributes = pk[5]
+
+    #Ys and user_attributes might not be the same length 
+    C = (g ** t) * G1.prod([Ys[attributes.index(att)]**user_attributes[att] 
+        for att in user_attributes.keys()])
+
+    pi = proof_of_knowledge(g, p, Ys, C, t, attributes, user_attributes)
+
+    return (C, pi), t
+
 
 
 def sign_issue_request(
@@ -138,18 +188,51 @@ def sign_issue_request(
 
     This corresponds to the "Issuer signing" step in the issuance protocol.
     """
-    raise NotImplementedError()
+    p = G1.order()
+    u = p.random()
+    X = sk[1]
+    C = request[0]
+    g = pk[0]
+    Ys = pk[1]
+    attributes = pk[5]
+
+    #Ys and user_attributes might not be the same length 
+    XCYs = X * C * G1.prod([Ys[attributes.index(att)]**issuer_attributes[att] 
+        for att in issuer_attributes.keys()])
+
+    o_ = (g**u, XCYs**u)
+
+    return (o_, issuer_attributes) 
+
 
 
 def obtain_credential(
         pk: PublicKey,
-        response: BlindSignature
+        response: BlindSignature,
+        user_attributes: AttributeMap,
+        t: int
     ) -> AnonymousCredential:
     """ Derive a credential from the issuer's response
 
     This corresponds to the "Unblinding signature" step.
     """
-    raise NotImplementedError()
+
+    attributes = pk[5]
+    o_ = response[0]
+    user_attributes = response[1]
+
+    o = (o_[0], o_[1]/(o_[0]**t))
+
+    attributes_values = [user_attributes[att] if att in user_attributes else issuer_attributes[att] \
+        for att in attributes]
+
+    if verify(pk, o, attributes_values):
+        credentials = (o, attributes_values)
+        return credentials
+
+    else:
+        return None
+
 
 
 ## SHOWING PROTOCOL ##
