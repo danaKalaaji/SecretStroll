@@ -154,16 +154,16 @@ class Client:
                 You need to design the state yourself.
         """
         user_subscriptions = subscriptions
-        pk, subscriptions = jdecode(server_pk)
+        server_pk, subscriptions = jdecode(server_pk)
 
         if not all([subscription in subscriptions for subscription in user_subscriptions]):
             raise ValueError("User can only subscribe to available subscriptions")
 
         user_attributes = {att:b'1' for att in user_subscriptions}
         user_attributes['sk'] = jencode(self.sk)
-        user_attributes['username'] = jencode(username)
+        user_attributes['username'] = b'1' #jencode(username)
 
-        request, t = create_issue_request(pk, user_attributes)
+        request, t = create_issue_request(server_pk, user_attributes)
 
         return (jencode(request), (t, user_attributes))
 
@@ -218,6 +218,6 @@ class Client:
         hidden_attributes = [att for att in subscriptions if att not in types and att != 'username']
         hidden_attributes.append('sk')
 
-        disclosure_proof = create_disclosure_proof(pk, credentials, hidden_attributes, message)
+        disclosure_proof = create_disclosure_proof(server_pk, credentials, hidden_attributes, message)
 
         return jencode(disclosure_proof)

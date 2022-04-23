@@ -57,18 +57,26 @@ def proof_of_knowledge1(                 #TODO: type parameters
     attributes,
     user_attributes_values):
 
+    user_attributes = [att for att in attributes if att in user_attributes_values.keys()]
+
     r_t = p.random()
     r_as = [p.random() for _ in range(len(user_attributes_values))]
 
-    R = (g**r_t) * G1.prod([Ys[attributes.index(att)]**r_as[list(user_attributes_values.keys()).index(att)] 
-        for att in user_attributes_values.keys()])
+    R = (g**r_t) * G1.prod([Ys[attributes.index(att)]**r_as[user_attributes.index(att)] 
+        for att in user_attributes])
 
     to_hash = jsonpickle.encode((g, Ys, C, R))
     c = to_int(hashlib.sha256(to_hash.encode()).digest())      #not random hash
 
     s_t = (r_t - c * t) % p
-    s_as = [(r_as[list(user_attributes_values.keys()).index(att)] - c * to_int(user_attributes_values[att])) % p
-        for att in user_attributes_values] 
+    s_as = [(r_as[user_attributes.index(att)] - c * to_int(user_attributes_values[att])) % p
+        for att in user_attributes] 
+
+    Yrs = [Ys[attributes.index(att)]**r_as[user_attributes.index(att)]
+        for att in user_attributes]
+
+    Ycs = [Ys[attributes.index(att)]**(c*to_int(user_attributes_values[att]))
+        for att in user_attributes]
 
     return c, s_t, s_as
 
@@ -85,6 +93,9 @@ def verify_proof_of_knowledge1(                       #TODO: type parameters
 
     R_ = (C**c) * (g**s_t) * G1.prod([Ys[attributes.index(att)]**s_as[user_attributes.index(att)]
         for att in user_attributes])
+
+    Yss = [Ys[attributes.index(att)]**s_as[user_attributes.index(att)] 
+        for att in user_attributes]
 
     to_hash = jsonpickle.encode((g, Ys, C, R_))
     c_ = to_int(hashlib.sha256(to_hash.encode()).digest())     #not random hash
