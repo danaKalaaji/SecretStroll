@@ -21,6 +21,8 @@ from serialization import jsonpickle
 
 from petrelic.multiplicative.pairing import G1, G2, GT
 
+import hashlib
+
 
 # Type hint aliases
 # Feel free to change them as you see fit.
@@ -28,7 +30,7 @@ from petrelic.multiplicative.pairing import G1, G2, GT
 SecretKey = Any
 PublicKey = Any
 Signature = Any
-Attribute = String
+Attribute = Any 
 AttributeMap = Any
 IssueRequest = Any
 BlindSignature = Any
@@ -43,34 +45,107 @@ DisclosureProof = Any
 
 
 def to_int(byte):
-    return int.from_bytes(byte, "big")
-
-def proof_of_knowledge(                 #TODO: type parameters
-        g,
-        p,
-        Ys,
-        C,
-        t,
-        attributes
-        user_attributes):
-        
-        r_t = p.random()
-
-        r_as = [p.random() for _ in len(user_attributes)]
-
-        R = (g ** r_t) * G1.prod([Ys[attributes.index(att)]**r_ais[att] 
-        for att in user_attributes.keys()])
-
-        c = hash(...) #todo
-
-        s_t = r_t - c * t #mod p
-
-        s_as = [r_as[user_attributes.keys().index(att)] - c * user_attributes[att] 
-                for att in user_attributes] #mod p
+    return int.from_bytes(byte, "big") 
 
 
+def proof_of_knowledge1(                 #TODO: type parameters
+    g,
+    p,
+    Ys,
+    C,
+    t,
+    attributes,
+    user_attributes_values):
+
+    r_t = p.random()
+    r_as = [p.random() for _ in range(len(user_attributes_values))]
+
+    R = (g**r_t) * G1.prod([Ys[attributes.index(att)]**r_as[list(user_attributes_values.keys()).index(att)] 
+        for att in user_attributes_values.keys()])
+
+    to_hash = jsonpickle.encode((g, Ys, C, R))
+    c = to_int(hashlib.sha256(to_hash.encode()).digest())      #not random hash
+
+    s_t = (r_t - c * t) % p
+    s_as = [(r_as[list(user_attributes_values.keys()).index(att)] - c * to_int(user_attributes_values[att])) % p
+        for att in user_attributes_values] 
+
+    return c, s_t, s_as
 
 
+def verify_proof_of_knowledge1(                       #TODO: type parameters
+    g,
+    Ys,
+    user_attributes,
+    attributes,
+    C,
+    c,
+    s_t,
+    s_as) -> bool:
+
+    R_ = (C**c) * (g**s_t) * G1.prod([Ys[attributes.index(att)]**s_as[user_attributes.index(att)]       # **c or **(-c) ??
+        for att in user_attributes])
+
+    to_hash = jsonpickle.encode((g, Ys, C, R_))
+    c_ = to_int(hashlib.sha256(to_hash.encode()).digest())     #not random hash
+
+    if c != c_:
+        print("Zero-proof verification 1 failed")
+        return False
+    else:
+        return True
+
+def proof_of_knowledge2(
+    o_,
+    g_,
+    p,
+    Ys_,
+    C,
+    t,
+    attributes,
+    attributes_values,
+    hidden_attributes,
+    message):
+
+    r_t = p.random()
+    r_as = [p.random() for _ in range(len(hidden_attributes))]
+
+    R = ((o_[0].pair(g_))**r_t) * GT.prod([ (o_[0].pair(Ys_[attributes.index(att)]))**r_as[hidden_attributes.index(att)] 
+    for att in hidden_attributes])
+
+    to_hash = jsonpickle.encode((g_, Ys_, C, R, message))
+    c = to_int(hashlib.sha256(to_hash.encode()).digest())      #not random hash
+
+    s_t = (r_t - c * t) % p
+    s_as = [(r_as[hidden_attributes.index(att)] - c * to_int(attributes_values[attributes.index(att)])) % p
+        for att in hidden_attributes]
+
+    return c, s_t, s_as
+
+
+def verify_proof_of_knowledge2(
+    o_,
+    g_,
+    Ys_,
+    attributes,
+    hidden_attributes,
+    C,
+    c,
+    s_t,
+    s_as,
+    message) -> bool:
+
+    R_ = (C**c) * ((o_[0].pair(g_))**s_t) * GT.prod([ (o_[0].pair(Ys_[attributes.index(att)]))**s_as[hidden_attributes.index(att)] 
+        for att in hidden_attributes])
+
+    to_hash = jsonpickle.encode((g_, Ys_, C, R_, message))
+    c_ = to_int(hashlib.sha256(to_hash.encode()).digest())      #not random hash
+
+    if c != c_:
+        print("Zero-proof verification 2 failed")
+        return False
+    else:
+        return True
 
 
 
@@ -117,6 +192,7 @@ def sign(
     """ Sign the vector of messages `msgs` """
     h = G1.generator()
     x = sk[0]
+    ys = sk[2]
 
     sum_ym = sum([y * to_int(msg) for (y, msg) in zip(ys, msgs)])
 
@@ -130,7 +206,7 @@ def verify(
         msgs: List[bytes]
     ) -> bool:
     """ Verify the signature on a vector of messages """
-    if signature[0].is_neutral_element()
+    if signature[0].is_neutral_element():
         print("Signature verification failed: h is the neutral element")
         return false
 
@@ -169,10 +245,10 @@ def create_issue_request(
     attributes = pk[5]
 
     #Ys and user_attributes might not be the same length 
-    C = (g ** t) * G1.prod([Ys[attributes.index(att)]**user_attributes[att] 
+    C = (g**t) * G1.prod([Ys[attributes.index(att)]**to_int(user_attributes[att])
         for att in user_attributes.keys()])
 
-    pi = proof_of_knowledge(g, p, Ys, C, t, attributes, user_attributes)
+    pi = proof_of_knowledge1(g, p, Ys, C, t, attributes, user_attributes)
 
     return (C, pi), t
 
@@ -184,25 +260,32 @@ def sign_issue_request(
         request: IssueRequest,
         issuer_attributes: AttributeMap
     ) -> BlindSignature:
-    """ Create a signature corresponding to the user's request
 
+    """ Create a signature corresponding to the user's request
     This corresponds to the "Issuer signing" step in the issuance protocol.
     """
     p = G1.order()
     u = p.random()
     X = sk[1]
-    C = request[0]
     g = pk[0]
     Ys = pk[1]
     attributes = pk[5]
 
-    #Ys and user_attributes might not be the same length 
-    XCYs = X * C * G1.prod([Ys[attributes.index(att)]**issuer_attributes[att] 
-        for att in issuer_attributes.keys()])
+    C, pi = request
+    c, s_t, s_as = pi
 
-    o_ = (g**u, XCYs**u)
+    user_attributes = [att for att in attributes if att not in issuer_attributes.keys()]
 
-    return (o_, issuer_attributes) 
+    if verify_proof_of_knowledge1(g, Ys, user_attributes, attributes, C, c, s_t, s_as):
+        #Ys and user_attributes might not be the same length 
+        XCYs = X * C * G1.prod([Ys[attributes.index(att)]**to_int(issuer_attributes[att])
+            for att in issuer_attributes.keys()])
+
+        o_ = (g**u, XCYs**u)
+
+        return (o_, issuer_attributes) 
+    else:
+        return None
 
 
 
@@ -212,14 +295,13 @@ def obtain_credential(
         user_attributes: AttributeMap,
         t: int
     ) -> AnonymousCredential:
-    """ Derive a credential from the issuer's response
 
+    """ Derive a credential from the issuer's response
     This corresponds to the "Unblinding signature" step.
     """
 
     attributes = pk[5]
-    o_ = response[0]
-    user_attributes = response[1]
+    o_, issuer_attributes = response
 
     o = (o_[0], o_[1]/(o_[0]**t))
 
@@ -227,9 +309,9 @@ def obtain_credential(
         for att in attributes]
 
     if verify(pk, o, attributes_values):
-        credentials = (o, attributes_values)
-        return credentials
+        credential = (o, attributes_values)
 
+        return credential
     else:
         return None
 
@@ -244,7 +326,30 @@ def create_disclosure_proof(
         message: bytes
     ) -> DisclosureProof:
     """ Create a disclosure proof """
-    raise NotImplementedError()
+
+    p = G1.order()
+    r = p.random()
+    t = p.random()
+    g_ = pk[2]
+    X_ = pk[3]
+    Ys_ = pk[4]
+    attributes = pk[5]
+
+    o, attributes_values = credential
+
+    disclosed_attributes = [att for att in attributes if att not in hidden_attributes]
+
+    o_ = ( o[0]**r, (o[1] * (o[0]**t))** r )
+
+    C = ((o_[1].pair(g_))/(o_[0].pair(X_))) * GT.prod([ (o_[0].pair(Ys_[attributes.index(att)]))**(-to_int(attributes_values[attributes.index(att)]))
+        for att in disclosed_attributes])
+
+    pi = proof_of_knowledge2(o_, g_, p, Ys_, C, t, attributes, attributes_values, hidden_attributes, message)
+
+    disclosed_attributes_values = [attributes_values[attributes.index(att)] for att in disclosed_attributes]
+
+    return o_, disclosed_attributes, disclosed_attributes_values, pi
+
 
 
 def verify_disclosure_proof(
@@ -256,4 +361,22 @@ def verify_disclosure_proof(
 
     Hint: The verifier may also want to retrieve the disclosed attributes
     """
-    raise NotImplementedError()
+    
+    g_ = pk[2]
+    X_ = pk[3]
+    Ys_ = pk[4]
+    attributes = pk[5]
+
+    o_, disclosed_attributes, disclosed_attributes_values, pi = disclosure_proof
+    c, s_t, s_as = pi
+
+    hidden_attributes = [att for att in attributes if att not in disclosed_attributes]
+
+    C = ((o_[1].pair(g_))/(o_[0].pair(X_))) * GT.prod([ (o_[0].pair(Ys_[attributes.index(att)]))**(-to_int(disclosed_attributes_values[disclosed_attributes.index(att)])) 
+        for att in disclosed_attributes])
+
+    if o_[0].is_neutral_element():
+        print("Disclosure Proof verification failed: o_[0] is the neutral element")
+        return false
+
+    return verify_proof_of_knowledge2(o_, g_, Ys_, attributes, hidden_attributes, C, c, s_t, s_as, message)
