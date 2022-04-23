@@ -45,7 +45,7 @@ DisclosureProof = Any
 
 
 def to_int(byte):
-    return int.from_bytes(byte, "big") 
+    return int.from_bytes(byte, "big") & (2**64-1) # TODO check this 64b limit of petrlic
 
 
 def proof_of_knowledge1(                 #TODO: type parameters
@@ -83,7 +83,7 @@ def verify_proof_of_knowledge1(                       #TODO: type parameters
     s_t,
     s_as) -> bool:
 
-    R_ = (C**c) * (g**s_t) * G1.prod([Ys[attributes.index(att)]**s_as[user_attributes.index(att)]       # **c or **(-c) ??
+    R_ = (C**c) * (g**s_t) * G1.prod([Ys[attributes.index(att)]**s_as[user_attributes.index(att)]
         for att in user_attributes])
 
     to_hash = jsonpickle.encode((g, Ys, C, R_))
@@ -182,7 +182,7 @@ def generate_key(
     pk = (g, Ys, g_, X_, Ys_, attributes) #added attributes to pk and sk
     sk = (x, X, ys, attributes)
 
-    return (pk, sk)
+    return (sk, pk)
 
 
 def sign(
@@ -348,7 +348,7 @@ def create_disclosure_proof(
 
     disclosed_attributes_values = [attributes_values[attributes.index(att)] for att in disclosed_attributes]
 
-    return o_, disclosed_attributes, disclosed_attributes_values, pi
+    return (o_, disclosed_attributes, disclosed_attributes_values, pi)
 
 
 

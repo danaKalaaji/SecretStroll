@@ -6,9 +6,18 @@ from typing import Any, Dict, List, Union, Tuple
 
 # Optional import
 from serialization import jsonpickle
+from credential import *
 
 # Type aliases
 State = Any
+
+
+def jencode(to_encode):
+    return jsonpickle.encode(to_encode).encode()
+
+
+def jdecode(to_decode):
+    return jsonpickle.decode(to_decode)
 
 
 class Server:
@@ -19,10 +28,7 @@ class Server:
         """
         Server constructor.
         """
-        ###############################################
-        # TODO: Complete this function.
-        ###############################################
-        raise NotImplementedError
+        return
 
 
     @staticmethod
@@ -44,10 +50,11 @@ class Server:
             You are free to design this as you see fit, but the return types
             should be encoded as bytes.
         """
-        ###############################################
-        # TODO: Complete this function.
-        ###############################################
-        raise NotImplementedError
+
+        # Note that `server.py` appends "username" to the command line attributes
+        sk, pk = generate_key(subscriptions+['sk'])
+
+        return jencode(sk), jencode((pk, subscriptions))
 
 
     def process_registration(
@@ -71,10 +78,18 @@ class Server:
             serialized response (the client should be able to build a
                 credential with this response).
         """
-        ###############################################
-        # TODO: Complete this function.
-        ###############################################
-        raise NotImplementedError
+        user_subscriptions = subscriptions
+        server_sk = jdecode(server_sk)
+        server_pk, subscriptions = jdecode(server_pk)
+
+        issuance_request = jdecode(issuance_request)
+
+        # Note that `server.py` appends "username" to the command line attributes, so "username" is in "subscriptions"
+        issuer_attributes = {att:b'0' for att in subscriptions if att not in user_subscriptions and att != 'username'}
+
+        response = sign_issue_request(server_sk, server_pk, issuance_request, issuer_attributes) # returns null
+
+        return jencode(response)
 
 
     def check_request_signature(
@@ -95,10 +110,17 @@ class Server:
         Returns:
             whether a signature is valid
         """
-        ###############################################
-        # TODO: Complete this function.
-        ###############################################
-        raise NotImplementedError
+        server_pk, subscriptions = jdecode(server_pk)
+        signature = jdecode(signature)
+
+        disclosed_attributes = signature[1]
+        disclosed_attributes_values = signature[2]
+
+        for att in revealed_attributes:
+            if disclosed_attributes_values[disclosed_attributes.index(att)] != b'1':
+                return False
+
+        return verify_disclosure_proof(server_pk, signature, message)
 
 
 class Client:
@@ -108,10 +130,7 @@ class Client:
         """
         Client constructor.
         """
-        ###############################################
-        # TODO: Complete this function.
-        ###############################################
-        raise NotImplementedError()
+        self.sk, self.pk = generate_key(["foo", "bar"])
 
 
     def prepare_registration(
@@ -134,10 +153,19 @@ class Client:
                 from prepare_registration to proceed_registration_response.
                 You need to design the state yourself.
         """
-        ###############################################
-        # TODO: Complete this function.
-        ###############################################
-        raise NotImplementedError
+        user_subscriptions = subscriptions
+        pk, subscriptions = jdecode(server_pk)
+
+        if not all([subscription in subscriptions for subscription in user_subscriptions]):
+            raise ValueError("User can only subscribe to available subscriptions")
+
+        user_attributes = {att:b'1' for att in user_subscriptions}
+        user_attributes['sk'] = jencode(self.sk)
+        user_attributes['username'] = jencode(username)
+
+        request, t = create_issue_request(pk, user_attributes)
+
+        return (jencode(request), (t, user_attributes))
 
 
     def process_registration_response(
@@ -157,10 +185,13 @@ class Client:
         Return:
             credentials: create an attribute-based credential for the user
         """
-        ###############################################
-        # TODO: Complete this function.
-        ###############################################
-        raise NotImplementedError
+        server_pk, subscriptions = jdecode(server_pk)
+        server_response = jdecode(server_response)
+        t, user_attributes = private_state
+
+        credentials = obtain_credential(server_pk, server_response, user_attributes, t)
+
+        return jencode(credentials)
 
 
     def sign_request(
@@ -181,7 +212,12 @@ class Client:
         Returns:
             A message's signature (serialized)
         """
-        ###############################################
-        # TODO: Complete this function.
-        ###############################################
-        raise NotImplementedError
+        server_pk, subscriptions = jdecode(server_pk)
+        credentials = jdecode(credentials)
+
+        hidden_attributes = [att for att in subscriptions if att not in types and att != 'username']
+        hidden_attributes.append('sk')
+
+        disclosure_proof = create_disclosure_proof(pk, credentials, hidden_attributes, message)
+
+        return jencode(disclosure_proof)

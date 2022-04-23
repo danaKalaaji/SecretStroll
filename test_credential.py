@@ -8,7 +8,7 @@ def test_generate_key():
    
    attributes = ["D","a","n","a"]
 
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    g, Ys, g_, X_, Ys_, attributes1 = pk
    x, X, ys, attributes2 = sk
@@ -31,7 +31,7 @@ def test_sign():
 
    attributes = ["how","why","what","?"]
    msgs = [b"hello", b"nice", b"to", b"meet"]
-   _, sk = generate_key(attributes)
+   sk, _ = generate_key(attributes)
    x = sk[0]
    ys = sk[2]
 
@@ -50,7 +50,7 @@ def test_sign_verify_success():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    signature = sign(sk, msgs)
 
@@ -61,7 +61,7 @@ def test_sign_verify_fail1():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    signature = sign(sk, msgs)
 
@@ -74,7 +74,7 @@ def test_sign_verify_fail2():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
    g, Ys, g_, X_, Ys_, attributes1 = pk
    signature = sign(sk, msgs)
    p = G1.order()
@@ -91,7 +91,7 @@ def test_sign_verify_fail3():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    signature = sign(sk, msgs)
    h, val = signature
@@ -109,7 +109,7 @@ def test_create_sign_issue_request_success():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    user_attributes = {att: att[::-1].encode() for att in attributes[:3]}
    issuer_attributes = {att: att[::-1].encode() for att in attributes[3:]}
@@ -127,7 +127,7 @@ def test_create_sign_issue_request_fail1():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
    x, X, ys, attributes1 = sk
    p = G1.order()
    L = len(attributes)
@@ -138,7 +138,7 @@ def test_create_sign_issue_request_fail1():
    # User side
    request, _ = create_issue_request(pk, user_attributes)
 
-   fake_pk, fake_sk = generate_key(attributes)
+   fake_sk, fake_pk = generate_key(attributes)
 
    # Issuer side
    response = sign_issue_request(fake_sk, fake_pk, request, issuer_attributes)
@@ -150,7 +150,7 @@ def test_create_sign_issue_request_fail2():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
    p = G1.order()
    L = len(attributes)
 
@@ -178,7 +178,7 @@ def test_obtain_credential():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    user_attributes = {att: att[::-1].encode() for att in attributes[:3]}
    issuer_attributes = {att: att[::-1].encode() for att in attributes[3:]}
@@ -195,7 +195,7 @@ def test_obtain_credential_fail1():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    user_attributes = {att: att[::-1].encode() for att in attributes[:3]}
    issuer_attributes = {att: att[::-1].encode() for att in attributes[3:]}
@@ -203,7 +203,7 @@ def test_obtain_credential_fail1():
    request, t = create_issue_request(pk, user_attributes)
    response = sign_issue_request(sk, pk, request, issuer_attributes)
 
-   fake_pk, _ = generate_key(attributes)
+   _, fake_pk = generate_key(attributes)
 
    credential = obtain_credential(fake_pk, response, user_attributes, t)
 
@@ -214,7 +214,7 @@ def test_obtain_credential_fail2():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    user_attributes = {att: att[::-1].encode() for att in attributes[:3]}
    issuer_attributes = {att: att[::-1].encode() for att in attributes[3:]}
@@ -233,7 +233,7 @@ def test_obtain_credential_fail3():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
    p = G1.order()
 
    user_attributes = {att: att[::-1].encode() for att in attributes[:3]}
@@ -253,7 +253,7 @@ def test_obtain_credential_fail4():
 
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
    p = G1.order()
 
    user_attributes = {att: att[::-1].encode() for att in attributes[:3]}
@@ -278,7 +278,7 @@ def test_obtain_credential_fail4():
 def test_create_verify_disclosure_proof():
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    user_attributes = {att: att[::-1].encode() for att in attributes[:3]}
    issuer_attributes = {att: att[::-1].encode() for att in attributes[3:]}
@@ -299,7 +299,7 @@ def test_create_verify_disclosure_proof():
 def test_create_verify_disclosure_proof_fail1():
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    user_attributes = {att: att[::-1].encode() for att in attributes[:3]}
    issuer_attributes = {att: att[::-1].encode() for att in attributes[3:]}
@@ -314,7 +314,7 @@ def test_create_verify_disclosure_proof_fail1():
 
    disclosure_proof = create_disclosure_proof(pk, credential, hidden_attributes, message)
 
-   fake_pk, _ = generate_key(attributes)   
+   _, fake_pk = generate_key(attributes)   
 
    assert not verify_disclosure_proof(fake_pk, disclosure_proof, message)
 
@@ -322,7 +322,7 @@ def test_create_verify_disclosure_proof_fail1():
 def test_create_verify_disclosure_proof_fail2():
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    user_attributes = {att: att[::-1].encode() for att in attributes[:3]}
    issuer_attributes = {att: att[::-1].encode() for att in attributes[3:]}
@@ -345,7 +345,7 @@ def test_create_verify_disclosure_proof_fail2():
 def test_create_verify_disclosure_proof_fail3():
    attributes = ["why", "so", "serious", "huh", "?", "??"]
    msgs = [b"I", b"am", b"finishing", b"this", b"super", b"late"]
-   pk, sk = generate_key(attributes)
+   sk, pk = generate_key(attributes)
 
    user_attributes = {att: att[::-1].encode() for att in attributes[:3]}
    issuer_attributes = {att: att[::-1].encode() for att in attributes[3:]}
