@@ -130,7 +130,7 @@ class Client:
         """
         Client constructor.
         """
-        self.sk, self.pk = generate_key(["foo", "bar"])
+        self.sk, self.pk = generate_key(["0", "1"])
 
 
     def prepare_registration(
@@ -161,7 +161,7 @@ class Client:
 
         user_attributes = {att:b'1' for att in user_subscriptions}
         user_attributes['sk'] = jencode(self.sk)
-        user_attributes['username'] = b'1' #jencode(username)
+        user_attributes['username'] = jencode(username)
 
         request, t = create_issue_request(server_pk, user_attributes)
 
