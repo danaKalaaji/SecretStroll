@@ -35,6 +35,7 @@ class Server:
     def generate_ca(
             subscriptions: List[str]
         ) -> Tuple[bytes, bytes]:
+    
         """Initializes the credential system. Runs exactly once in the
         beginning. Decides on schemes public parameters and choses a secret key
         for the server.
@@ -52,6 +53,9 @@ class Server:
         """
 
         # Note that `server.py` appends "username" to the command line attributes
+        if "username" not in subscriptions:
+            raise Exception("Username was not in subscriptions")
+
         sk, pk = generate_key(subscriptions+['sk'])
 
         return jencode(sk), jencode((pk, subscriptions))
@@ -65,6 +69,7 @@ class Server:
             username: str,
             subscriptions: List[str]
         ) -> bytes:
+
         """ Registers a new account on the server.
 
         Args:
@@ -78,17 +83,23 @@ class Server:
             serialized response (the client should be able to build a
                 credential with this response).
         """
+
         user_subscriptions = subscriptions
         server_sk = jdecode(server_sk)
         server_pk, subscriptions = jdecode(server_pk)
+
+        if not set(user_subscriptions).issubset(set(subscriptions)):
+            raise Exception("An element of user_subscriptions is not in subscriptions")
 
         issuance_request = jdecode(issuance_request)
 
         # Note that `server.py` appends "username" to the command line attributes, so "username" is in "subscriptions"
         issuer_attributes = {att:b'0' for att in subscriptions if att not in user_subscriptions and att != 'username'}
 
-        response = sign_issue_request(server_sk, server_pk, issuance_request, issuer_attributes) # returns null
+        response = sign_issue_request(server_sk, server_pk, issuance_request, issuer_attributes) 
 
+        if response == None:
+            raise Exception("Proof of knowledge for issue request failed")
         return jencode(response)
 
 
@@ -99,6 +110,7 @@ class Server:
         revealed_attributes: List[str],
         signature: bytes
         ) -> bool:
+
         """ Verify the signature on the location request
 
         Args:
@@ -110,10 +122,18 @@ class Server:
         Returns:
             whether a signature is valid
         """
+
         server_pk, subscriptions = jdecode(server_pk)
         signature = jdecode(signature)
 
+        if not set(revealed_attributes).issubset(set(subscriptions)):
+            raise Exception("An element of revealed_attributes is not in subscriptions")
+
         disclosed_attributes = signature[1]
+
+        if not set(revealed_attributes).issubset(set(disclosed_attributes)):
+            raise Exception("An element of revealed_attributes is not in disclosed_attributes")
+
         disclosed_attributes_values = signature[2]
 
         for att in revealed_attributes:
@@ -139,6 +159,7 @@ class Client:
             username: str,
             subscriptions: List[str]
         ) -> Tuple[bytes, State]:
+
         """Prepare a request to register a new account on the server.
 
         Args:
@@ -153,12 +174,13 @@ class Client:
                 from prepare_registration to proceed_registration_response.
                 You need to design the state yourself.
         """
+
         user_subscriptions = subscriptions
         server_pk, subscriptions = jdecode(server_pk)
 
-        if not all([subscription in subscriptions for subscription in user_subscriptions]):
-            raise ValueError("User can only subscribe to available subscriptions")
-
+        if not set(user_subscriptions).issubset(set(subscriptions)): 
+            raise Exception("User can only subscribe to available subscriptions")
+        
         user_attributes = {att:b'1' for att in user_subscriptions}
         user_attributes['sk'] = jencode(self.sk)
         user_attributes['username'] = jencode(username)
@@ -174,6 +196,7 @@ class Client:
             server_response: bytes,
             private_state: State
         ) -> bytes:
+
         """Process the response from the server.
 
         Args:
@@ -185,11 +208,15 @@ class Client:
         Return:
             credentials: create an attribute-based credential for the user
         """
+
         server_pk, subscriptions = jdecode(server_pk)
         server_response = jdecode(server_response)
         t, user_attributes = private_state
 
         credentials = obtain_credential(server_pk, server_response, user_attributes, t)
+
+        if credentials == None:
+            raise Exception("PS credentials verification failed")
 
         return jencode(credentials)
 
@@ -201,6 +228,7 @@ class Client:
             message: bytes,
             types: List[str]
         ) -> bytes:
+
         """Signs the request with the client's credential.
 
         Arg:
@@ -212,7 +240,12 @@ class Client:
         Returns:
             A message's signature (serialized)
         """
+
         server_pk, subscriptions = jdecode(server_pk)
+
+        if not set(types).issubset(set(subscriptions)): 
+            raise Exception("An element of types is not in subscriptions")
+
         credentials = jdecode(credentials)
 
         hidden_attributes = [att for att in subscriptions if att not in types and att != 'username']

@@ -4,6 +4,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold
 
+from scapy.all import rdpcap
+
 
 def classify(train_features, train_labels, test_features, test_labels):
 
@@ -33,6 +35,7 @@ def classify(train_features, train_labels, test_features, test_labels):
     
     return predictions
 
+
 def perform_crossval(features, labels, folds=10):
 
     """Function to perform cross-validation.
@@ -54,14 +57,28 @@ def perform_crossval(features, labels, folds=10):
     labels = np.array(labels)
     features = np.array(features)
 
+    accuracies = []
+    precisions = []
+
     for train_index, test_index in kf.split(features, labels):
         X_train, X_test = features[train_index], features[test_index]
         y_train, y_test = labels[train_index], labels[test_index]
         predictions = classify(X_train, y_train, X_test, y_test)
 
-    ###############################################
-    # TODO: Write code to evaluate the performance of your classifier
-    ###############################################
+        prediction_results = predictions == y_test
+
+        accuracy  = np.sum(prediction_results)/len(predictions)
+
+        precision = np.mean([np.sum(np.logical_and(predictions == i, prediction_results))/np.sum(predictions == i)
+            for i in range(1,101) if np.sum(predictions == i) > 0]) # pondérée ? to do
+
+        accuracies.append(accuracy)
+        precisions.append(precision)
+
+    # Std too ?
+    print("Mean of accuracies over " + str(folds) + " folds:", np.mean(accuracies))
+    print("Mean of precisions over " + str(folds) + " folds:", np.mean(precisions))
+
 
 def load_data():
 
@@ -91,15 +108,23 @@ def load_data():
     feature extraction on your own.
     """
 
-    ###############################################
-    # TODO: Complete this function. 
-    ###############################################
-
     features = []
     labels = []
 
+    for cell in range(1,101):
+        for i in range(1,101): # can be modified
+            trace = rdpcap("./traces/cell" + str(cell) + "/iteration" + str(i))
+
+            sum_pack_len = sum([packet['IP'].len for packet in trace])
+            sum_payl_len = sum([len(packet.payload) for packet in trace])
+            num_packets  = len(trace)
+
+            features.append((sum_pack_len, sum_payl_len, num_packets))
+            labels.append(cell)
+
     return features, labels
         
+
 def main():
 
     """Please complete this skeleton to implement cell fingerprinting.
@@ -111,8 +136,10 @@ def main():
     """
 
     features, labels = load_data()
+    print("data loaded")
     perform_crossval(features, labels, folds=10)
     
+
 if __name__ == "__main__":
     try:
         main()

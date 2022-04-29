@@ -15,11 +15,12 @@ resembles the original scheme definition. However, you are free to restructure
 the functions provided to resemble a more object-oriented interface.
 """
 
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Dict
 
 from serialization import jsonpickle
 
-from petrelic.multiplicative.pairing import G1, G2, GT
+from petrelic.multiplicative.pairing import G1, G2, GT, G1Element, G2Element, GTElement
+from petrelic.bn import Bn
 
 import hashlib
 
@@ -27,15 +28,16 @@ import hashlib
 # Type hint aliases
 # Feel free to change them as you see fit.
 # Maybe at the end, you will not need aliases at all!
-SecretKey = Any
-PublicKey = Any
-Signature = Any
-Attribute = Any 
-AttributeMap = Any
-IssueRequest = Any
-BlindSignature = Any
-AnonymousCredential = Any
-DisclosureProof = Any
+Attribute = str
+ProofKnowledge = Tuple[int, int, int]
+SecretKey = Tuple[int, G1Element, List[int], List[Attribute]]
+PublicKey = Tuple[G1Element, List[G1Element], G2Element, G2Element, List[G2Element], List[Attribute]]
+Signature = Tuple[G1Element, G1Element]
+AttributeMap = Dict[Attribute, bytes]
+IssueRequest = Tuple[G1Element, ProofKnowledge]
+BlindSignature = Tuple[Signature, AttributeMap]
+AnonymousCredential = Tuple[Signature, List[bytes]]
+DisclosureProof = Tuple[Signature, List[Attribute], List[bytes], ProofKnowledge]
 
 
 
@@ -44,18 +46,46 @@ DisclosureProof = Any
 ######################
 
 
-def to_int(byte):
+def to_int(
+    byte: bytes
+    ) -> int:
+
+    """Converts a byte into an int
+
+    Args:
+        byte: byte to be converted
+
+    Returns:
+        resulting int
+    """
+
     return int.from_bytes(byte, "big") & (2**64-1) # TODO check this 64b limit of petrlic
 
 
-def proof_of_knowledge1(                 #TODO: type parameters
-    g,
-    p,
-    Ys,
-    C,
-    t,
-    attributes,
-    user_attributes_values):
+def proof_of_knowledge1(                
+    g: G1Element,
+    p: Bn,
+    Ys: List[G1Element],
+    C: G1Element,
+    t: G1Element,
+    attributes: List[Attribute],
+    user_attributes_values: AttributeMap
+    ) -> ProofKnowledge:
+
+    """Creates the proof of knowledge used in the issuance protocol
+
+    Args:
+        g: generator of the group G1
+        p: order of the group G1
+        Ys: 2nd element of the public key
+        C: commitment
+        t: secret
+        attributes: list of attributes
+        user_attributes_values: map of the attributes
+
+    Returns:
+        Non interactive proof that C has been computed correctly
+    """
 
     user_attributes = [att for att in attributes if att in user_attributes_values.keys()]
 
@@ -81,21 +111,36 @@ def proof_of_knowledge1(                 #TODO: type parameters
     return c, s_t, s_as
 
 
-def verify_proof_of_knowledge1(                       #TODO: type parameters
-    g,
-    Ys,
-    user_attributes,
-    attributes,
-    C,
-    c,
-    s_t,
-    s_as) -> bool:
+def verify_proof_of_knowledge1(                      
+    g: G1Element,
+    Ys: List[G1Element],
+    user_attributes: List[Attribute],
+    attributes: List[Attribute],
+    C: G1Element,
+    c: int,
+    s_t: int,
+    s_as: int
+    ) -> bool:
+
+    """Verifies the proof of knowledge used in the issuance protocol
+
+    Args:
+        g: generator of the group G1
+        Ys: 2nd element of the public key
+        user_attributes: list of user's attributes
+        attributes: list of attributes
+        C: commit
+        c: challenge
+        s_t: value computed in the proof based on secret t
+        s_as: value computed in the proof based on the attributes values
+
+
+    Returns:
+        True if the verification was a success
+    """
 
     R_ = (C**c) * (g**s_t) * G1.prod([Ys[attributes.index(att)]**s_as[user_attributes.index(att)]
         for att in user_attributes])
-
-    Yss = [Ys[attributes.index(att)]**s_as[user_attributes.index(att)] 
-        for att in user_attributes]
 
     to_hash = jsonpickle.encode((g, Ys, C, R_))
     c_ = to_int(hashlib.sha256(to_hash.encode()).digest())     #not random hash
@@ -107,16 +152,35 @@ def verify_proof_of_knowledge1(                       #TODO: type parameters
         return True
 
 def proof_of_knowledge2(
-    o_,
-    g_,
-    p,
-    Ys_,
-    C,
-    t,
-    attributes,
-    attributes_values,
-    hidden_attributes,
-    message):
+    o_: Signature,
+    g_: G2Element,
+    p: Bn,
+    Ys_: List[G2Element],
+    C: GTElement,
+    t: int,
+    attributes: List[Attribute],
+    attributes_values: List[bytes],
+    hidden_attributes: List[Attribute],
+    message: bytes
+    ) -> ProofKnowledge:
+
+    """Creates the proof of knowledge used in the showing protocol
+
+    Args:
+        o_: signature
+        g_: generator of the group G2
+        p: order of the group G2
+        Ys_: 5th element of the public key 
+        C: commitment
+        t: secret
+        attributes: list of attributes
+        attributes_values: map of the attributes
+        hidden_attributes: list of attributes hidden to the verifier
+        message: message to include in the hash
+
+    Returns:
+        Non interactive proof that o_ is a valid signature
+    """
 
     r_t = p.random()
     r_as = [p.random() for _ in range(len(hidden_attributes))]
@@ -135,16 +199,35 @@ def proof_of_knowledge2(
 
 
 def verify_proof_of_knowledge2(
-    o_,
-    g_,
-    Ys_,
-    attributes,
-    hidden_attributes,
-    C,
-    c,
-    s_t,
-    s_as,
-    message) -> bool:
+    o_: Signature,
+    g_: G2Element,
+    Ys_: List[G2Element],
+    attributes: List[Attribute],
+    hidden_attributes: List[Attribute],
+    C: GTElement,
+    c: int,
+    s_t: int,
+    s_as: int,
+    message: bytes
+    ) -> bool:
+
+    """Verifies the proof of knowledge used in the showing protocol
+
+    Args:
+        o_: signature
+        g_: generator of the group G2
+        Ys_: 5th element of the public key 
+        attributes: list of attributes
+        hidden_attributes: list of attributes hidden to the verifier
+        C: commitment
+        c: challenge
+        s_t: value computed in the proof based on secret t
+        s_as: value computed in the proof based on the attributes values
+        message: message to include in the hash
+
+    Returns:
+        True if o_ is a valid signature
+    """
 
     R_ = (C**c) * ((o_[0].pair(g_))**s_t) * GT.prod([ (o_[0].pair(Ys_[attributes.index(att)]))**s_as[hidden_attributes.index(att)] 
         for att in hidden_attributes])
@@ -292,7 +375,7 @@ def sign_issue_request(
         XCYs = X * C * G1.prod([Ys[attributes.index(att)]**to_int(issuer_attributes[att])
             for att in issuer_attributes.keys()])
 
-        o_ = (g**u, XCYs**u)
+        o_ = (g**u, XCYs**u) #G1Element
 
         return (o_, issuer_attributes) 
     else:
@@ -314,14 +397,13 @@ def obtain_credential(
     attributes = pk[5]
     o_, issuer_attributes = response
 
-    o = (o_[0], o_[1]/(o_[0]**t))
+    o = (o_[0], o_[1]/(o_[0]**t)) #G1Element
 
     attributes_values = [user_attributes[att] if att in user_attributes else issuer_attributes[att] \
         for att in attributes]
 
     if verify(pk, o, attributes_values):
         credential = (o, attributes_values)
-
         return credential
     else:
         return None
@@ -350,7 +432,7 @@ def create_disclosure_proof(
 
     disclosed_attributes = [att for att in attributes if att not in hidden_attributes]
 
-    o_ = ( o[0]**r, (o[1] * (o[0]**t))** r )
+    o_ = ( o[0]**r, (o[1] * (o[0]**t))** r ) #G1Element
 
     C = ((o_[1].pair(g_))/(o_[0].pair(X_))) * GT.prod([ (o_[0].pair(Ys_[attributes.index(att)]))**(-to_int(attributes_values[attributes.index(att)]))
         for att in disclosed_attributes])
