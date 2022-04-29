@@ -75,9 +75,11 @@ def perform_crossval(features, labels, folds=10):
         accuracies.append(accuracy)
         precisions.append(precision)
 
-    # Std too ?
     print("Mean of accuracies over " + str(folds) + " folds:", np.mean(accuracies))
+    print("Variance of accuracies over " + str(folds) + " folds:", np.var(accuracies))
+
     print("Mean of precisions over " + str(folds) + " folds:", np.mean(precisions))
+    print("Variance of precisions over " + str(folds) + " folds:", np.var(precisions))
 
 
 def load_data():
